@@ -4,12 +4,35 @@ document.addEventListener("DOMContentLoaded", () => {
   modalPelicula = new bootstrap.Modal(document.getElementById("modalPelicula"));
 });
 
+// ---------- Funciones de errores ----------
+
+// Muestra los errores que devuelve Pydantic dentro del modal
+function mostrarErrores(errores) {
+  const divError = document.getElementById("divError");
+  const listaErrores = document.getElementById("listaErrores");
+  listaErrores.innerHTML = errores.map((e) => `<li>${e}</li>`).join("");
+  divError.classList.remove("d-none");
+}
+
+// Esconde el bloque de errores
+function limpiarErrores() {
+  const divError = document.getElementById("divError");
+  const listaErrores = document.getElementById("listaErrores");
+  listaErrores.innerHTML = "";
+  divError.classList.add("d-none");
+}
+
+// ---------- Modal: Agregar ----------
+
 function abrirModalAgregar() {
   document.getElementById("modalPeliculaLabel").textContent = "Agregar Película";
   document.getElementById("formPelicula").reset();
   document.getElementById("peliculaId").value = "";
+  limpiarErrores();
   modalPelicula.show();
 }
+
+// ---------- Modal: Editar ----------
 
 async function editarPelicula(id) {
   try {
@@ -27,13 +50,23 @@ async function editarPelicula(id) {
     document.getElementById("sinopsis").value = pelicula.sinopsis || "";
 
     document.getElementById("modalPeliculaLabel").textContent = "Editar Película";
+    limpiarErrores();
     modalPelicula.show();
   } catch (error) {
     alert(error.message);
   }
 }
 
+// ---------- Guardar (crear o actualizar) ----------
+
 async function guardarPelicula() {
+  // Validación HTML5 del formulario antes de enviar
+  const form = document.getElementById("formPelicula");
+  if (!form.reportValidity()) return;
+
+  // Limpiar cualquier error anterior
+  limpiarErrores();
+
   const id = document.getElementById("peliculaId").value;
   const datos = {
     titulo: document.getElementById("titulo").value,
@@ -41,8 +74,12 @@ async function guardarPelicula() {
     año: parseInt(document.getElementById("año").value),
     director: document.getElementById("director").value,
     precio: parseFloat(document.getElementById("precio").value),
-    duracion: document.getElementById("duracion").value ? parseInt(document.getElementById("duracion").value) : null,
-    sinopsis: document.getElementById("sinopsis").value,
+    // Si duración está vacía, envía null (campo opcional)
+    duracion: document.getElementById("duracion").value
+      ? parseInt(document.getElementById("duracion").value)
+      : null,
+    // Si sinopsis está vacía, envía null (campo opcional)
+    sinopsis: document.getElementById("sinopsis").value || null,
   };
 
   const url = id ? `/api/peliculas/${id}` : "/api/peliculas";
@@ -56,14 +93,23 @@ async function guardarPelicula() {
     });
 
     if (response.ok) {
+      // Todo bien → recarga la página para ver los cambios
       location.reload();
+    } else if (response.status === 422) {
+      // Error de validación de Pydantic → muestra los mensajes
+      const errorData = await response.json();
+      mostrarErrores(errorData.errores);
     } else {
-      alert("Error al guardar");
+      // Otro error inesperado
+      mostrarErrores(["Error inesperado al guardar la película"]);
     }
   } catch (error) {
     console.error(error);
+    mostrarErrores(["Error de conexión. Verifica que el servidor esté activo."]);
   }
 }
+
+// ---------- Eliminar ----------
 
 async function eliminarPelicula(id) {
   if (!confirm("¿Eliminar esta película?")) return;
